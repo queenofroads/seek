@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { use } from 'react'
+import { use, useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { loadStripe } from '@stripe/stripe-js'
 
 interface Service {
   id: string
@@ -10,6 +12,7 @@ interface Service {
   price: number
   duration_minutes?: number
   service_type: string
+  currency: string
 }
 
 interface Profile {
@@ -24,47 +27,103 @@ interface Profile {
   instagram_url?: string
 }
 
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
+
 export default function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = use(params)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [services, setServices] = useState<Service[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [showBookingModal, setShowBookingModal] = useState(false)
 
-  // Mock data - will be replaced with actual Supabase data
-  const profile: Profile = {
-    username: username,
-    full_name: 'Sarah Chen',
-    headline: 'Design Consultant | Ex-Google',
-    bio: 'I help founders and product teams design beautiful, user-friendly products. With 10+ years of experience at Google and various startups, I can help you with product design, UX strategy, and design systems.',
-    avatar_url: undefined,
-    banner_image_url: undefined,
-    twitter_url: 'https://twitter.com/sarahchen',
-    linkedin_url: 'https://linkedin.com/in/sarahchen',
-    instagram_url: undefined
+  // Booking form state
+  const [customerName, setCustomerName] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledTime, setScheduledTime] = useState('')
+  const [bookingLoading, setBookingLoading] = useState(false)
+  const [bookingError, setBookingError] = useState<string | null>(null)
+
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        // Fetch profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('username', username)
+          .single()
+
+        if (profileError) throw profileError
+        setProfile(profileData)
+
+        // Fetch active services
+        const { data: servicesData, error: servicesError } = await supabase
+          .from('services')
+          .select('*')
+          .eq('creator_id', profileData.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+
+        if (servicesError) throw servicesError
+        setServices(servicesData || [])
+      } catch (error) {
+        console.error('Error loading profile:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadProfile()
+  }, [username])
+
+  const handleBookNow = (service: Service) => {
+    setSelectedService(service)
+    setShowBookingModal(true)
+    setBookingError(null)
   }
 
-  const services: Service[] = [
-    {
-      id: '1',
-      title: '30-min Design Review',
-      description: 'Get expert feedback on your product design, UX flow, or design system.',
-      price: 99,
-      duration_minutes: 30,
-      service_type: 'consultation'
-    },
-    {
-      id: '2',
-      title: '1-Hour Strategy Call',
-      description: 'Discuss your product strategy, roadmap, and design approach in depth.',
-      price: 199,
-      duration_minutes: 60,
-      service_type: 'consultation'
-    },
-    {
-      id: '3',
-      title: 'Design System Masterclass',
-      description: 'Learn how to build and maintain scalable design systems for your team.',
-      price: 49,
-      service_type: 'digital_product'
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBookingError(null)
+    setBookingLoading(true)
+
+    try {
+      if (!selectedService) return
+
+      const scheduledAt = new Date(`${scheduledDate}T${scheduledTime}:00`)
+
+      // Create checkout session
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceId: selectedService.id,
+          customerEmail,
+          customerName,
+          scheduledAt: scheduledAt.toISOString(),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session')
+      }
+
+      // Redirect to Stripe Checkout
+      const stripe = await stripePromise
+      if (stripe && data.sessionId) {
+        await stripe.redirectToCheckout({ sessionId: data.sessionId })
+      }
+    } catch (error) {
+      setBookingError(error instanceof Error ? error.message : 'Booking failed')
+      setBookingLoading(false)
     }
-  ]
+  }
 
   const getServiceIcon = (type: string) => {
     const icons: Record<string, string> = {
@@ -74,6 +133,29 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
       priority_dm: '💌'
     }
     return icons[type] || '📦'
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⏳</div>
+          <p className="text-gray-400">Loading profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">😔</div>
+          <p className="text-white text-xl mb-2">Profile not found</p>
+          <Link href="/" className="text-gray-400 hover:text-white">← Back to home</Link>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -200,7 +282,10 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                   </p>
                 </div>
 
-                <button className="w-full px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition font-semibold">
+                <button
+                  onClick={() => handleBookNow(service)}
+                  className="w-full px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition font-semibold"
+                >
                   Book Now
                 </button>
               </div>
@@ -224,9 +309,112 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
               SEEK
             </Link>
           </p>
-          <p className="text-gray-500 text-sm mt-2">© 2025 SEEK. Build your creator business.</p>
+          <p className="text-gray-500 text-sm mt-2">© 2025 SEEK.</p>
         </div>
       </footer>
+
+      {/* Booking Modal */}
+      {showBookingModal && selectedService && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl max-w-md w-full border border-gray-800">
+            <div className="p-6 border-b border-gray-800">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Book {selectedService.title}</h2>
+                <button
+                  onClick={() => setShowBookingModal(false)}
+                  className="text-gray-400 hover:text-white transition text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-gray-400 mt-2">
+                ${selectedService.price} {selectedService.duration_minutes && `/ ${selectedService.duration_minutes} min`}
+              </p>
+            </div>
+
+            <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
+              {bookingError && (
+                <div className="bg-red-900/50 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg text-sm">
+                  {bookingError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-gray-500"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-gray-500"
+                  placeholder="john@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Preferred Date
+                </label>
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Preferred Time
+                </label>
+                <input
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowBookingModal(false)}
+                  disabled={bookingLoading}
+                  className="flex-1 px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition font-semibold disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={bookingLoading}
+                  className="flex-1 px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition font-semibold disabled:opacity-50"
+                >
+                  {bookingLoading ? 'Processing...' : 'Pay & Book'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
