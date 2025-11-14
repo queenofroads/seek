@@ -9,6 +9,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -20,7 +21,22 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      // Generate username from email if not provided
+      const finalUsername = username || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+
+      // Check if username is available
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', finalUsername)
+        .single()
+
+      if (existingProfile) {
+        throw new Error('Username already taken. Please choose another.')
+      }
+
+      // Sign up the user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -31,6 +47,19 @@ export default function SignupPage() {
       })
 
       if (signUpError) throw signUpError
+      if (!authData.user) throw new Error('Signup failed')
+
+      // Create profile in database
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          username: finalUsername,
+          full_name: fullName,
+          email: email,
+        })
+
+      if (profileError) throw profileError
 
       router.push('/dashboard')
       router.refresh()
@@ -68,6 +97,21 @@ export default function SignupPage() {
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-gray-500 transition"
                 placeholder="John Doe"
               />
+            </div>
+
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-400 mb-2">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-gray-500 transition"
+                placeholder="johndoe"
+              />
+              <p className="mt-1 text-sm text-gray-500">Your unique URL: seek.com/@{username || 'username'}</p>
             </div>
 
             <div>
