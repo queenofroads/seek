@@ -61,30 +61,21 @@ export default function Home() {
             {/* Left: Content */}
             <div className="relative z-10">
               <h1 className="text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
-                Your All-in-One<br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Creator</span>{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-400 to-gray-600">Storefront</span>
+                One link.<br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Everything</span>{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-400 to-gray-600">you offer.</span>
               </h1>
               <p className="text-xl lg:text-2xl text-gray-400 mb-8 leading-relaxed">
-                Make money from your content. Sell products, host sessions, and grow your business — all from a single link.
+                Share your knowledge. Get paid instantly. It just works.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <Link
                   href="/signup"
                   className="bg-white hover:bg-gray-200 text-black font-semibold px-10 py-5 rounded-lg text-xl transition inline-flex items-center justify-center gap-2"
                 >
-                  Start My Page
+                  Get Started
                   <span className="text-2xl">→</span>
                 </Link>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-6 text-sm">
-                <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
-                  <span className="text-gray-400">⭐⭐⭐⭐⭐</span>
-                  <span className="font-medium text-white">100k+ reviews</span>
-                </div>
-                <div className="font-medium text-white bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
-                  1mn+ professionals
-                </div>
               </div>
             </div>
 
@@ -132,43 +123,43 @@ export default function Home() {
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-5xl lg:text-6xl font-bold text-white mb-4">
-              Everything You Need to Grow
+              Simple. Powerful.
             </h2>
             <p className="text-2xl text-gray-400">
-              Powerful tools for modern creators
+              Everything you need. Nothing you don't.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
                 icon: '📅',
-                title: '1:1 Consultations',
-                description: 'Schedule and manage personalized video calls with automated booking and payments.'
+                title: '1:1 Sessions',
+                description: 'Book calls. Get paid. Automatically.'
               },
               {
                 icon: '🎓',
-                title: 'Workshops & Webinars',
-                description: 'Host group sessions and scale your impact with live workshops and recorded content.'
+                title: 'Workshops',
+                description: 'Teach what you know. Scale your impact.'
               },
               {
                 icon: '💳',
                 title: 'Digital Products',
-                description: 'Sell courses, ebooks, templates, and more. Instant delivery, zero hassle.'
+                description: 'Create once. Sell forever.'
               },
               {
                 icon: '💰',
-                title: 'Priority DMs',
-                description: 'Monetize your time with paid direct messaging and personalized advice.'
+                title: 'Priority Access',
+                description: 'Your time is valuable. Charge for it.'
               },
               {
                 icon: '🔗',
-                title: 'Bio Link',
-                description: 'Your personal landing page to showcase all your offerings in one place.'
+                title: 'One Link',
+                description: 'Everything in one place. Beautiful.'
               },
               {
                 icon: '📊',
-                title: 'Analytics',
-                description: 'Track bookings, revenue, and audience insights to grow your business.'
+                title: 'Insights',
+                description: 'Know what works. Grow faster.'
               }
             ].map((feature, index) => (
               <div
@@ -188,16 +179,16 @@ export default function Home() {
       <section className="py-20 px-4 bg-gray-900 relative">
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <h2 className="text-5xl lg:text-6xl font-bold text-white mb-6">
-            Ready to Start Earning?
+            Ready?
           </h2>
           <p className="text-2xl text-gray-400 mb-10">
-            Join thousands of creators who are building their business with seek
+            Start in minutes. Free.
           </p>
           <Link
             href="/signup"
             className="inline-block bg-white hover:bg-gray-200 text-black font-semibold px-12 py-6 rounded-lg text-2xl transition transform hover:scale-105"
           >
-            Get Started Free →
+            Get Started →
           </Link>
         </div>
       </section>
@@ -239,7 +230,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center">
-            <p className="text-gray-400">© 2025 SEEK. Build your creator business.</p>
+            <p className="text-gray-400">© 2025 SEEK.</p>
           </div>
         </div>
       </footer>
