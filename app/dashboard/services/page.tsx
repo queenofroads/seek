@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 type ServiceType = 'consultation' | 'workshop' | 'digital_product' | 'priority_dm' | 'custom'
 type ServiceStatus = 'draft' | 'active' | 'paused' | 'archived'
@@ -21,9 +23,94 @@ interface Service {
 
 export default function ServicesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [services, setServices] = useState<Service[]>([])
+  const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
 
-  // Mock services - will be replaced with actual data from Supabase
-  const services: Service[] = []
+  // Form state
+  const [serviceType, setServiceType] = useState<ServiceType>('consultation')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [price, setPrice] = useState('')
+  const [duration, setDuration] = useState('30')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const supabase = createClient()
+  const router = useRouter()
+
+  // Fetch user and services on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
+        setUserId(user.id)
+
+        // Fetch services
+        const { data, error } = await supabase
+          .from('services')
+          .select('*')
+          .eq('creator_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+        setServices(data || [])
+      } catch (err) {
+        console.error('Error loading services:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  const handleCreateService = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+
+    try {
+      if (!userId) throw new Error('Not authenticated')
+
+      const { data, error } = await supabase
+        .from('services')
+        .insert({
+          creator_id: userId,
+          title,
+          description,
+          service_type: serviceType,
+          price: parseFloat(price),
+          currency: 'USD',
+          duration_minutes: parseInt(duration),
+          status: 'active',
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Add to services list
+      setServices([data, ...services])
+
+      // Reset form and close modal
+      setTitle('')
+      setDescription('')
+      setPrice('')
+      setDuration('30')
+      setServiceType('consultation')
+      setShowCreateModal(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create service')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const getServiceTypeLabel = (type: ServiceType) => {
     const labels = {
@@ -133,7 +220,14 @@ export default function ServicesPage() {
         </header>
 
         <div className="px-8 py-8">
-          {services.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <div className="text-4xl mb-4">⏳</div>
+                <p className="text-gray-400">Loading services...</p>
+              </div>
+            </div>
+          ) : services.length === 0 ? (
             // Empty state
             <div className="flex flex-col items-center justify-center py-20">
               <div className="text-center max-w-md">
@@ -226,7 +320,13 @@ export default function ServicesPage() {
             </div>
 
             <div className="p-6">
-              <form className="space-y-6">
+              <form onSubmit={handleCreateService} className="space-y-6">
+                {error && (
+                  <div className="bg-red-900/50 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">
                     Service Type
@@ -241,10 +341,15 @@ export default function ServicesPage() {
                       <button
                         key={type.value}
                         type="button"
-                        className="p-4 bg-gray-800 border border-gray-700 hover:border-white rounded-lg transition text-left"
+                        onClick={() => setServiceType(type.value as ServiceType)}
+                        className={`p-4 border rounded-lg transition text-left ${
+                          serviceType === type.value
+                            ? 'bg-white text-black border-white'
+                            : 'bg-gray-800 border-gray-700 hover:border-white'
+                        }`}
                       >
                         <div className="text-2xl mb-2">{type.icon}</div>
-                        <div className="text-sm font-semibold text-white">{type.label}</div>
+                        <div className="text-sm font-semibold">{type.label}</div>
                       </button>
                     ))}
                   </div>
@@ -256,6 +361,9 @@ export default function ServicesPage() {
                   </label>
                   <input
                     type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
                     placeholder="e.g., 30-min Career Coaching Session"
                     className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-gray-500"
                   />
@@ -267,6 +375,9 @@ export default function ServicesPage() {
                   </label>
                   <textarea
                     rows={4}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
                     placeholder="Describe what you'll cover in this service..."
                     className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-gray-500"
                   />
@@ -279,6 +390,11 @@ export default function ServicesPage() {
                     </label>
                     <input
                       type="number"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required
+                      min="0"
+                      step="0.01"
                       placeholder="99"
                       className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-gray-500"
                     />
@@ -287,13 +403,17 @@ export default function ServicesPage() {
                     <label className="block text-sm font-medium text-gray-400 mb-2">
                       Duration (minutes)
                     </label>
-                    <select className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white">
-                      <option>15</option>
-                      <option>30</option>
-                      <option>45</option>
-                      <option>60</option>
-                      <option>90</option>
-                      <option>120</option>
+                    <select
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent text-white"
+                    >
+                      <option value="15">15</option>
+                      <option value="30">30</option>
+                      <option value="45">45</option>
+                      <option value="60">60</option>
+                      <option value="90">90</option>
+                      <option value="120">120</option>
                     </select>
                   </div>
                 </div>
@@ -302,15 +422,17 @@ export default function ServicesPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="flex-1 px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition font-semibold"
+                    disabled={submitting}
+                    className="flex-1 px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition font-semibold disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition font-semibold"
+                    disabled={submitting}
+                    className="flex-1 px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition font-semibold disabled:opacity-50"
                   >
-                    Create Service
+                    {submitting ? 'Creating...' : 'Create Service'}
                   </button>
                 </div>
               </form>
