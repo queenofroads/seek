@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { use, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { loadStripe } from '@stripe/stripe-js'
 
 interface Service {
   id: string
@@ -26,8 +25,6 @@ interface Profile {
   linkedin_url?: string
   instagram_url?: string
 }
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
 
 export default function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = use(params)
@@ -115,9 +112,8 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
       }
 
       // Redirect to Stripe Checkout
-      const stripe = await stripePromise
-      if (stripe && data.sessionId) {
-        await stripe.redirectToCheckout({ sessionId: data.sessionId })
+      if (data.url) {
+        window.location.href = data.url
       }
     } catch (error) {
       setBookingError(error instanceof Error ? error.message : 'Booking failed')
